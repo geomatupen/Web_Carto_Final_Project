@@ -1,0 +1,340 @@
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Choropleth with MapLibre GL JS</title>
+  <link
+    href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { width: 100%; height: 100vh; }
+    .popup-table tr:nth-child(even) { background: #fce0b0; }
+    .popup-table tr:nth-child(odd) { background: #ffffff; }
+</style>
+
+</head>
+<body>
+  <div id="map"></div>
+  <div id="layer-panel">
+    <h3>Layers</h3>
+
+    <!-- Regions -->
+    <div class="layer-group">
+      <div class="layer-header">
+        <input type="checkbox" id="regions-visible" checked>
+        <label for="regions-visible" class="layer-title">Regions</label>
+      </div>
+
+      <div class="layer-sub">
+        <label class="sub-toggle">
+          <input type="checkbox" id="regions-labels-visible" checked>
+          Labels
+        </label>
+
+        <div class="opacity-row">
+          <span>Opacity</span>
+          <input type="range" id="regions-opacity" min="0" max="1" step="0.05" value="1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Markers -->
+    <div class="layer-group">
+      <div class="layer-header">
+        <span class="layer-title">Markers</span>
+      </div>
+
+      <div class="layer-sub">
+        <label class="sub-toggle">
+          <input type="checkbox" id="marker-default-visible" checked>
+          Default Marker
+        </label>
+
+        <label class="sub-toggle">
+          <input type="checkbox" id="marker-png-visible" checked>
+          PNG Marker
+        </label>
+
+        <label class="sub-toggle">
+          <input type="checkbox" id="marker-html-visible" checked>
+          HTML Marker
+        </label>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+  <script>
+    //map initialization
+    const map = new maplibregl.Map({
+      container: "map",
+      style: "https://api.maptiler.com/maps/7ef13454-8f0d-4cf9-a061-d2f4cb08a76d/style.json?key=SWfpfQVfURyYQrAEj6J3", //you may change with your style json.
+      center: [14.1, 47.75],
+      zoom: 6.8
+    });
+
+    // ------------------------------------choropleth layer------------------------------------  // 
+    // Add GeoJSON source and layers    
+    map.on("load", () => {
+      map.addSource("regions", {
+        type: "geojson",
+        data: "data/austria-demography-simplified-wgs84.geojson"
+      });
+
+      // Add fill layer with data-driven color using expression
+      map.addLayer({
+        id: "regions-fill",
+        type: "fill",
+        source: "regions",
+        paint: {
+          "fill-color": [
+            "interpolate",
+            ["linear"],
+            ["get", "POP_DENSIT"],    // property from  GeoJSON
+            50, "#ffc7c7",
+            100, "#ffadad",
+            150, "#ff8f8f",
+            200, "#ff5c5c",
+            250, "#ff2e2e",
+            4653, "#d50101",
+          ],
+          "fill-opacity": 0.8,
+        },
+      });
+
+      // Add stroke
+      map.addLayer({
+        id: "regions-outline",
+        type: "line",
+        source: "regions",
+        // simple paint for outline
+        // paint: {
+        //   "line-color": "#ffffff",
+        //   "line-width": 1
+        // }
+
+        //complex paint for outline on hover effect
+        paint: {
+          //better to change fill color instead of line color on hover
+          // "line-color": [
+          //   "case",
+          //   ["boolean", ["feature-state", "hover"], false],
+          //   "#FF0000",  // red when hovered
+          //   "#ffffff"   // normal
+          // ],
+          "line-color": "#ffffff",
+          "line-width": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false],
+            3,          // thick on hover
+            1           // normal
+          ]
+        }
+      });
+
+      
+      // Add labels on a layer
+      map.addLayer({
+        id: "regions-labels",
+        type: "symbol",
+        source: "regions",
+        layout: {
+          "text-field": ["get", "NAME"],      // your label property
+          "text-size": 12,
+          "symbol-placement": "point"
+        },
+        paint: {
+          "text-color": "#000",
+          "text-halo-color": "#fff",
+          "text-halo-width": 1.5
+        }
+      });
+
+    });  
+
+
+
+    //------------------------------------markers------------------------------------  //
+      //default marker start
+      const markerDefault = new maplibregl.Marker()
+        .setLngLat([16.3725, 48.2084]);
+
+      markerDefault.addTo(map);
+      //default marker end
+
+      //custom marker png start
+      const el = document.createElement("div");
+      const img = document.createElement("img");
+      img.src = "./marker.png";
+      img.style.width = "25px";
+      img.style.height = "40px";
+      el.appendChild(img);
+
+      const markerPNG  = new maplibregl.Marker({ element: el })
+        .setLngLat([16.0725, 48.0084])
+        .addTo(map);
+      //custom marker png end
+
+
+      //html marker start
+      const el1 = document.createElement("div");
+      el1.innerHTML = `
+        <div style="
+            background:#ff5722;
+            color:white;
+            padding:4px 8px;
+            border-radius:6px;
+            font-size:12px;
+        ">HTML Marker</div>
+      `;
+      const markerHTML = new maplibregl.Marker({ element: el1 })
+        .setLngLat([15.8725, 48.2084])
+        .addTo(map);
+      //html marker end
+
+      
+     // -------------------------------marker popups-----------------------------------------  // 
+      // prevent polygon click when point marker is clicked
+      markerPNG.getElement().addEventListener("click", (e) => {
+        e.stopPropagation();       // prevents polygon popup
+        markerPNG.togglePopup();      // shows marker popup
+      });
+
+      //marker popup simple way to set popup
+      const popup = new maplibregl.Popup({ offset: 25 })
+        .setHTML("<h3>Marker Info</h3><p>This is a PNG marker.</p>");
+
+      // Attach popup to marker
+      markerPNG.setPopup(popup);
+
+
+      // Function to build popup HTML content
+      function buildPopupHTML(properties) {
+        const name = properties.NAME || properties.name || null;
+
+        // Create table rows for all properties except NAME
+        const rows = Object.entries(properties)
+        .filter(([key]) => key.toLowerCase() !== "name")
+        .map(
+          ([key, value], i) => `
+            <tr style="background:${i % 2 ? "#eddbdb" : "#ffffff"}">
+              <td style="padding:4px 6px; color: #272727"><strong>${key}</strong></td>
+              <td style="padding:4px 6px;">${value}</td>
+            </tr>
+          `
+        )
+        .join("");
+
+
+        return `
+          <div style="
+            max-width: 260px;
+            font-family: sans-serif;
+          ">
+            ${name ? `<h3 style="
+                margin: 0 0 8px 0;
+                font-size: 16px;
+                font-weight: bold;
+                border-bottom: 1px solid #ccc;
+                padding: 7px;
+                background: #eccaca;
+                color: #272727;
+            ">${name}</h3>` : ""}
+
+            <div style="
+              max-height: 150px;
+              overflow-y: auto;
+              border: 1px solid #ddd;
+              border-radius: 4px;
+            ">
+              <table style="
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+              ">
+                <tbody>
+                  ${rows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+    }
+
+    // Add click event to show popup    
+    map.on("click", "regions-fill", (e) => {
+    const props = e.features[0].properties;
+
+    new maplibregl.Popup({ closeButton: true })
+        .setLngLat(e.lngLat)
+        .setHTML(buildPopupHTML(props))
+        .addTo(map);
+    });
+
+
+    //--------------------------------mouseover effect------------------------------------  //
+    let hoveredFeatureId = null;
+
+    map.on("mousemove", "regions-fill", (e) => {
+      if (!e.features.length) return;
+
+      const feature = e.features[0];
+      if (hoveredFeatureId !== null && hoveredFeatureId !== feature.id) {
+        map.setFeatureState(
+          { source: "regions", id: hoveredFeatureId },
+          { hover: false }
+        );
+      }
+
+      hoveredFeatureId = feature.id;
+
+      map.setFeatureState(
+        { source: "regions", id: hoveredFeatureId },
+        { hover: true }
+      );
+    });
+
+    map.on("mouseleave", "regions-fill", () => {
+      if (hoveredFeatureId !== null) {
+        map.setFeatureState(
+          { source: "regions", id: hoveredFeatureId },
+          { hover: false }
+        );
+      }
+      hoveredFeatureId = null;
+    });
+
+
+
+    //--------------------------------cursor pointer on layers during hover------------------------------------  //
+    // Change cursor to pointer when hovering over interactive layers
+    map.on("load", () => {
+      map.on("mousemove", (e) => {
+        const features = map.queryRenderedFeatures(e.point, {
+          layers: ["regions-fill", "regions-outline", "regions-labels"]
+        });
+
+        if (features.length) {
+          map.getCanvas().style.cursor = "pointer";
+        } else {
+          map.getCanvas().style.cursor = "";
+        }
+      });
+
+    
+      markerDefault.getElement().style.cursor = "pointer";
+      markerPNG.getElement().style.cursor = "pointer";  
+      markerHTML.getElement().style.cursor = "pointer";
+    });
+
+
+
+
+  </script>
+  <!-- main.js includes the layers and other map logic--> 
+  <script src="main.js"></script>
+</body>
+</html>
