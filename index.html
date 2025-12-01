@@ -75,7 +75,8 @@
       zoom: 6.8
     });
 
-    // ------------------------------------choropleth layer------------------------------------  // 
+    
+    // ------------------------------------choropleth layer------------------------------------  //
     // Add GeoJSON source and layers    
     map.on("load", () => {
       map.addSource("regions", {
@@ -86,10 +87,10 @@
       // Add fill layer with data-driven color using expression
       map.addLayer({
         id: "regions-fill",
-        type: "fill",
+        type: "fill", 
         source: "regions",
         paint: {
-          "fill-color": [
+          "fill-color": "#ffc7c7", /*[
             "interpolate",
             ["linear"],
             ["get", "POP_DENSIT"],    // property from  GeoJSON
@@ -99,7 +100,7 @@
             200, "#ff5c5c",
             250, "#ff2e2e",
             4653, "#d50101",
-          ],
+          ],*/
           "fill-opacity": 0.8,
         },
       });
@@ -127,7 +128,7 @@
           "line-color": "#ffffff",
           "line-width": [
             "case",
-            ["boolean", ["feature-state", "hover"], false],
+            ["boolean", ["feature-state", "hover"], false], 
             3,          // thick on hover
             1           // normal
           ]
@@ -152,8 +153,7 @@
         }
       });
 
-    });  
-
+    }); 
 
 
     //------------------------------------markers------------------------------------  //
