@@ -206,6 +206,12 @@
       <div class="legend-item"><div class="legend-swatch" style="background:#1abc9c"></div><div class="legend-label">Amenities (points)</div></div>
       <div class="legend-item"><div class="legend-swatch" style="background:#e67e22"></div><div class="legend-label">Buildings (extruded)</div></div>
       <div class="legend-item"><div class="legend-swatch" style="background:#34495e"></div><div class="legend-label">Salzburg boundary</div></div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#3498db"></div><div class="legend-label">Rivers</div></div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#f39c12"></div><div class="legend-label">Education</div></div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div><div class="legend-label">Health</div></div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#d35400"></div><div class="legend-label">Restaurants</div></div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#9b59b6"></div><div class="legend-label">Tourism</div></div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#16a085"></div><div class="legend-label">Transportation</div></div>
     </div>
   </div>
 
@@ -528,10 +534,35 @@
         data: "data/streets.geojson"
       });
 
-      /*map.addSource("train", {
+      map.addSource("education", {
         type: "geojson",
-        data: "data/train.geojson"
-      });*/
+        data: "data/Education.geojson"
+      });
+
+      map.addSource("health", {
+        type: "geojson",
+        data: "data/Health.geojson"
+      });
+
+      map.addSource("restaurants", {
+        type: "geojson",
+        data: "data/Restaurants.geojson"
+      });
+
+      map.addSource("rivers", {
+        type: "geojson",
+        data: "data/rivers.geojson"
+      });
+
+      map.addSource("tourism", {
+        type: "geojson",
+        data: "data/Tourism.geojson"
+      });
+
+      map.addSource("transportation", {
+        type: "geojson",
+        data: "data/Transportation.geojson"
+      });
 
       // Add layers for amenities (points) - new color theme
       map.addLayer({
@@ -663,16 +694,74 @@
         }
       });
 
+      // Add rivers (lines)
       map.addLayer({
-        id: "train-layer",
-        type: "circle",
-        source: "train",
+        id: "rivers-layer",
+        type: "line",
+        source: "rivers",
         paint: {
-          "circle-radius": 8,
+          "line-color": "#3498db",
+          "line-width": 2
+        }
+      });
+
+      // Add education POIs (points)
+      map.addLayer({
+        id: "education-layer",
+        type: "circle",
+        source: "education",
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "#f39c12",
+          "circle-opacity": 0.85
+        }
+      });
+
+      // Add health POIs (points)
+      map.addLayer({
+        id: "health-layer",
+        type: "circle",
+        source: "health",
+        paint: {
+          "circle-radius": 5,
           "circle-color": "#e74c3c",
-          "circle-opacity": 0.95,
-          "circle-stroke-color": "#b03a2e",
-          "circle-stroke-width": 1
+          "circle-opacity": 0.85
+        }
+      });
+
+      // Add restaurants POIs (points)
+      map.addLayer({
+        id: "restaurants-layer",
+        type: "circle",
+        source: "restaurants",
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "#d35400",
+          "circle-opacity": 0.85
+        }
+      });
+
+      // Add tourism POIs (points)
+      map.addLayer({
+        id: "tourism-layer",
+        type: "circle",
+        source: "tourism",
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "#9b59b6",
+          "circle-opacity": 0.85
+        }
+      });
+
+      // Add transportation POIs (points)
+      map.addLayer({
+        id: "transportation-layer",
+        type: "circle",
+        source: "transportation",
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "#16a085",
+          "circle-opacity": 0.85
         }
       });
 
@@ -851,7 +940,12 @@
       "buildings-layer",
       "railway-layer",
       "streets-layer",
-      "train-layer"
+      "rivers-layer",
+      "education-layer",
+      "health-layer",
+      "restaurants-layer",
+      "tourism-layer",
+      "transportation-layer"
     ];
 
     layersWithPopups.forEach(layerId => {
@@ -872,7 +966,12 @@
       "buildings-layer",
       "railway-layer",
       "streets-layer",
-      "train-layer"
+      "rivers-layer",
+      "education-layer",
+      "health-layer",
+      "restaurants-layer",
+      "tourism-layer",
+      "transportation-layer"
     ];
 
     map.on("click", (e) => {
@@ -975,7 +1074,7 @@
     // Change cursor to pointer when hovering over interactive layers
     map.on("mousemove", (e) => {
       const features = map.queryRenderedFeatures(e.point, {
-        layers: ["amenities-layer", "buildings-layer", "railway-layer", "streets-layer", "train-layer"]
+        layers: ["amenities-layer", "buildings-layer", "railway-layer", "streets-layer", "rivers-layer", "education-layer", "health-layer", "restaurants-layer", "tourism-layer", "transportation-layer"]
       });
 
       if (features.length) {
