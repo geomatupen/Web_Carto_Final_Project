@@ -1137,8 +1137,9 @@
       const btn = triggerButton || null;
       if (btn) {
         btn.disabled = true;
-        var originalText = btn.textContent;
-        btn.textContent = 'Locating...';
+        // preserve the button icon HTML and show a small busy indicator (keep icon visible)
+        var originalHTML = btn.innerHTML;
+        btn.innerHTML = originalHTML + ' <span aria-hidden="true">⏳</span>';
       }
 
       navigator.geolocation.getCurrentPosition(
@@ -1209,7 +1210,7 @@
 
           if (btn) {
             btn.disabled = false;
-            btn.textContent = originalText;
+            btn.innerHTML = originalHTML;
           }
         },
         (err) => {
@@ -1217,7 +1218,7 @@
           alert('Unable to retrieve your location: ' + (err.message || err.code));
           if (btn) {
             btn.disabled = false;
-            btn.textContent = originalText;
+            btn.innerHTML = originalHTML;
           }
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -1309,7 +1310,7 @@
 
         const btnLocate = document.createElement('button');
         btnLocate.type = 'button';
-        btnLocate.title = 'Find my location';
+        btnLocate.title = '';
         // crosshair / locate icon
         btnLocate.innerHTML = `
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -1318,7 +1319,7 @@
         btnLocate.className = 'ctrl-btn';
         const lLabel = document.createElement('span');
         lLabel.className = 'visually-hidden';
-        lLabel.textContent = 'Find my location';
+        
         btnLocate.appendChild(lLabel);
         btnLocate.addEventListener('click', () => findMyLocation(btnLocate));
 
