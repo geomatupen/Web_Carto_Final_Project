@@ -19,7 +19,10 @@
         <li>View the results and interact with the highlighted locations!</li>
       </ul>
       <div style="margin-top:8px;font-size:0.93em;color:#444;">This application is built on open data to support residents, visitors, researchers, and urban planners in experiencing Salzburg more connectedly.</div>
-      <!-- Side scrollbar for popup -->
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
+        <button id="welcome-skip" style="background:#f1f3f4;border:1px solid rgba(0,0,0,0.06);padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.92rem;color:#222">Skip</button>
+        <button id="welcome-no-show" style="background:#1978c8;color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.92rem">Don't show again</button>
+      </div>
     </div>
   </div>
   <script>
@@ -27,10 +30,32 @@
     window.addEventListener('DOMContentLoaded', function() {
       var popup = document.getElementById('welcome-popup');
       var closeBtn = document.getElementById('welcome-close');
-      if (popup && closeBtn) {
-        closeBtn.addEventListener('click', function() {
-          popup.style.display = 'none';
-        });
+      var skipBtn = document.getElementById('welcome-skip');
+      var noShowBtn = document.getElementById('welcome-no-show');
+
+      // If user previously chose 'don't show again', hide immediately
+      try {
+        if (localStorage && localStorage.getItem && localStorage.getItem('welcome_dont_show') === '1') {
+          if (popup) popup.style.display = 'none';
+          return;
+        }
+      } catch (e) {
+        // ignore localStorage errors
+      }
+
+      if (popup) {
+        if (closeBtn) {
+          closeBtn.addEventListener('click', function() { popup.style.display = 'none'; });
+        }
+        if (skipBtn) {
+          skipBtn.addEventListener('click', function() { popup.style.display = 'none'; });
+        }
+        if (noShowBtn) {
+          noShowBtn.addEventListener('click', function() {
+            try { localStorage.setItem('welcome_dont_show', '1'); } catch (e) {}
+            popup.style.display = 'none';
+          });
+        }
       }
     });
   </script>
