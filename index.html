@@ -212,7 +212,7 @@
       -webkit-appearance: none;
       appearance: none;
       width: 100%;
-      height: 6px;
+      height: 4px;
       background: transparent;
       border-radius: 9999px;
       outline: none;
@@ -319,6 +319,8 @@
     }
     /* Slightly larger icons when explicitly using text-lg or larger utility classes should still work */
     /* (removed map-control-specific overrides to avoid unintended visibility issues) */
+    /* Mobile-only layer control: keep hidden on desktop, show on small screens */
+    .pin-btn { display: none !important; }
   </style>
   <style>
     /* Tailwind-like gray utility fallbacks (single-file / no build) */
@@ -341,8 +343,8 @@
     /* Text size utilities (keep `text-sm` as the sidebar title reference) */
     .text-sm { font-size: 0.875rem !important; }
     .text-xs { font-size: 0.75rem !important; }
-    .text-xxs { font-size: 0.6875rem !important; }
-    .text-xxxs { font-size: 0.625rem !important; }
+    .text-xxs { font-size: 0.65rem !important; }
+    .text-xxxs { font-size: 0.55rem !important; }
 
      /* Reusable spacing utilities (Tailwind-like names) - keep as common primitives
        so you can reuse them across panels without adding bespoke CSS later. */
@@ -374,6 +376,82 @@
 
   <!-- Inter: compact UI font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Responsive adjustments for small and medium screens
+       - Layer panel becomes a bottom drawer on small screens
+       - Search box becomes full-width near top
+       - Map control group moves to bottom-left on phones and lays out horizontally
+       - Legend compresses to avoid overlapping the panel
+    */
+    @media (max-width: 1024px) {
+      /* make layer panel narrower on tablets */
+      #layer-panel { width: 340px !important; max-width: 92vw !important; }
+      .layer-panel-body { max-height: 60vh; }
+    }
+
+    @media (max-width: 640px) {
+      /* Layer panel -> bottom drawer */
+      #layer-panel {
+        left: 0 !important;
+        right: 0 !important;
+        top: auto !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: 60vh !important;
+        border-radius: 12px 12px 0 0 !important;
+        box-shadow: 0 -8px 30px rgba(2,6,23,0.12) !important;
+        transform: translateZ(0);
+      }
+      /* panel header slightly smaller to fit mobile */
+      #layer-panel .panel-header { padding: 0.5rem 0.75rem !important; }
+      #layer-panel .panel-header .text-sm { font-size: 0.9rem !important; }
+      .layer-panel-body { max-height: 50vh !important; overflow: auto !important; }
+
+      /* move map controls to bottom-left and horizontally layout */
+      .map-control-container { position: fixed !important; bottom: 1rem !important; left: 0.75rem !important; right: auto !important; z-index: 60 !important; }
+
+      /* Show the small hamburger control on mobile only */
+      .pin-btn { display: inline-flex !important; }
+
+    /* Pin state for layer panel: when pinned on mobile, allow larger max-height and keep visible */
+    #layer-panel.pinned {
+      max-height: calc(100vh - 3.5rem) !important;
+      bottom: 0 !important;
+    }
+    /* Visual state for the pin button when active */
+    .pin-btn[aria-pressed="true"] { background: rgba(42,119,237,0.08) !important; }
+
+      .map-control-container.maplibregl-ctrl-group { display: flex !important; flex-direction: row !important; gap: 0.5rem !important; }
+
+      /* search bar full width near top */
+      #search-container { left: 0.75rem !important; right: 0.75rem !important; width: auto !important; top: 0.75rem !important; z-index: 70 !important; }
+      #search-input { width: 100% !important; }
+
+      /* legend: full-width mobile drawer (no horizontal gaps) */
+      /* reduce drawer height slightly (55vh) so more of the map remains visible */
+      #layer-panel { max-height: 55vh !important; }
+      #map-legend { left: 0 !important; right: 0 !important; bottom: calc(55vh + 0.5rem) !important; width: 100% !important; max-width: none !important; border-radius: 8px !important; }
+      /* Reduce the legend content height on small screens so it covers less of the map */
+      #map-legend .panel-body { max-height: 25vh !important; overflow: auto !important; }
+      /* Use a class-driven collapse so JS can toggle legend content on mobile
+        (previously this rule hard-hidden the body preventing the expand button from working) */
+      #map-legend.collapsed .panel-body { display: none !important; }
+
+      /* proximity panel and other small popups should fit mobile width */
+      #proximity-panel { left: 0.75rem !important; right: 0.75rem !important; top: 4.5rem !important; width: auto !important; z-index: 75 !important; }
+
+      /* reduce padding for layer-menu when collapsed to keep visible space */
+      .layer-menu.p-2 { padding: 0.5rem !important; }
+    }
+    /* Collapsed panel behaviour: ensure collapsed panels shrink to header only */
+    .draggable-panel.collapsed { height: auto !important; max-height: none !important; min-height: 0 !important; overflow: visible !important; }
+    .draggable-panel.collapsed .panel-body,
+    .draggable-panel.collapsed .layer-panel-body { display: none !important; }
+    /* make sure layer header remains visible and compact when collapsed */
+    .draggable-panel.collapsed .panel-header { border-radius: 8px; }
+  </style>
   
 </head>
 <body class="h-full overflow-hidden font-sans">
@@ -393,10 +471,10 @@
   <!-- Legend (draggable + minimizable) -->
   <div id="map-legend" class="draggable-panel map-legend absolute left-3 bottom-3 w-56 max-w-xs z-20 bg-white rounded-lg shadow-lg" role="dialog" aria-label="Map legend">
     <div class="panel-header flex items-center justify-between p-3 pb-1 pt-1 border-b border-gray-100">
-      <strong class="text-xs">Map legend</strong>
+      <strong class="text-xs">Legend</strong>
       <div class="panel-controls flex items-center gap-2">
         <span class="panel-icon hidden" aria-hidden="true"><i class="fa-solid fa-bars text-lg text-slate-800"></i></span>
-        <button class="minimize-btn btn-tertiary w-8 h-8 p-0 inline-flex items-center justify-center" data-target="map-legend" aria-label="Minimize legend"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
+        <button class="minimize-btn btn-tertiary w-8 h-8 p-0 inline-flex items-center justify-center" data-target="map-legend" aria-label="Minimize legend" aria-expanded="true"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
       </div>
     </div>
     <div class="panel-body p-3 pt-0 space-y-2 max-h-64 overflow-auto">
@@ -447,11 +525,11 @@
     </div>
   <!-- Webmap Title: top right, above layer panel -->
   
-  <div id="layer-panel" class="draggable-panel layer-panel absolute right-5 top-3 w-1/4 max-w-md z-20 h-screen flex flex-col bg-white/95 shadow-lg">
-    <div class="panel-header flex items-center justify-between p-3 border-b bg-white/90 border-gray-100">
-      <div class="text-sm font-semibold">MeinSalzburg | Salzburg Urban Toolkit</div>
+  <div id="layer-panel" class="draggable-panel layer-panel absolute right-5 top-3 w-1/4 max-w-md z-20 h-screen flex flex-col bg-white/95 shadow-lg rounded-lg pb-4">
+    <div class="panel-header flex items-center justify-between p-3 border-b bg-primary border-gray-100 rounded-lg">
+      <div class="text-sm font-semibold text-gray-200">MeinSalzburg | Salzburg Urban Toolkit</div>
       <div class="panel-controls flex items-center gap-2">
-        <button class="minimize-btn btn-tertiary w-8 h-8 p-0 inline-flex items-center justify-center" data-target="layer-panel" aria-label="Minimize layers"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
+        <button class="minimize-btn btn-tertiary w-8 h-8 p-0 inline-flex items-center justify-center" data-target="layer-panel" aria-label="Minimize layers" aria-expanded="true"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
       </div>
     </div>
     <div class="layer-panel-body overflow-auto p-2">
@@ -469,9 +547,9 @@
           </div>
         </div>
         <div class="mb-3">
-          <div class="flex flex-col gap-2">
-            <label class="flex items-center gap-3"><input type="radio" name="basemap" value="street" id="basemap-street-radio" checked> <span class="text-xxs text-gray-600">Street</span></label>
-            <label class="flex items-center gap-3"><input type="radio" name="basemap" value="satellite" id="basemap-sat-radio"> <span class="text-xxs text-gray-600">Satellite</span></label>
+          <div class="flex flex-col gap-2 pb-2">
+            <label class="flex items-center gap-3"><input type="radio" name="basemap" value="street" id="basemap-street-radio" checked> <span class="text-xs text-gray-600">Street</span></label>
+            <label class="flex items-center gap-3"><input type="radio" name="basemap" value="satellite" id="basemap-sat-radio"> <span class="text-xs text-gray-600">Satellite</span></label>
           </div>
         </div>
 
@@ -615,6 +693,137 @@
     </div>
   </div>
 
+  <!-- Removed mobile pin/hamburger control per UX request. -->
+
+  <!-- Centralize panel collapse/expand behavior: helper + wiring -->
+  <script>
+    (function(){
+      function setPanelCollapsed(panel, collapsed){
+        if (!panel) return;
+        // maintain collapsed class (used by CSS) but also control inline styles to avoid !important collisions
+        if (collapsed) panel.classList.add('collapsed'); else panel.classList.remove('collapsed');
+
+        // prefer semantic selectors for body (panel-body or layer-panel-body)
+        const body = panel.querySelector('.panel-body') || panel.querySelector('.layer-panel-body');
+        if (body){
+          // use inline styles so we can override any CSS !important rules reliably
+          if (collapsed) {
+            body.classList.add('hidden');
+            // ensure hidden using inline style (use important to override stylesheet rules)
+            try { body.style.setProperty('display', 'none', 'important'); } catch(e){ body.style.display = 'none'; }
+          } else {
+            // remove hidden marker and any inline display override
+            body.classList.remove('hidden');
+            try { body.style.removeProperty('display'); } catch(e){ body.style.display = ''; }
+          }
+          // expose state for screen readers
+          body.setAttribute('aria-hidden', collapsed ? 'true' : 'false');
+        }
+
+        // update minimize icon if present
+        const minBtn = panel.querySelector('.minimize-btn');
+        if (minBtn){
+          const icon = minBtn.querySelector('i');
+          if (icon){
+            icon.classList.toggle('fa-minus', !collapsed);
+            icon.classList.toggle('fa-plus', collapsed);
+          }
+          // keep explicit attributes for automation and accessibility
+          minBtn.setAttribute('data-collapsed', collapsed ? 'true' : 'false');
+          minBtn.setAttribute('aria-expanded', (!collapsed).toString());
+        }
+
+        // On small screens, keep only one drawer visible at a time: if the
+        // user opens the legend, collapse the layer panel and vice-versa.
+        try {
+          if (window.innerWidth <= 640) {
+            const pid = panel.id;
+            if (!pid) {
+              // nothing to do
+            } else if (!collapsed && pid === 'map-legend') {
+              // legend is being opened on mobile — collapse layer panel
+              const other = document.getElementById('layer-panel');
+              if (other) setPanelCollapsed(other, true);
+            } else if (!collapsed && pid === 'layer-panel') {
+              // layer panel is being opened on mobile — collapse legend
+              const other = document.getElementById('map-legend');
+              if (other) setPanelCollapsed(other, true);
+            }
+          }
+        } catch (e) {}
+
+        // After changing panel state, adjust legend position (mobile) so panels stack nicely
+        try { updateLegendPosition(); } catch (e) {}
+      }
+
+      // Compute and set legend position so it sits immediately above the minimized layer panel on small screens.
+      // This function uses inline style with `important` to override mobile stylesheet rules such as
+      // `#map-legend { bottom: calc(55vh + 1rem) !important; }` when the layer panel is collapsed.
+      function updateLegendPosition(){
+        const legend = document.getElementById('map-legend');
+        const layer = document.getElementById('layer-panel');
+        if (!legend) return;
+        
+        // Toggle margin-bottom utility on small screens so the legend has
+        // extra spacing when displayed above the mobile drawer.
+        try {
+          if (window.innerWidth <= 640) legend.classList.add('mb-5'); else legend.classList.remove('mb-5');
+        } catch (e) {}
+        // On narrow screens we want the legend to float just above the minimized layer header
+        if (window.innerWidth <= 640 && layer){
+          if (layer.classList.contains('collapsed')){
+            const header = layer.querySelector('.panel-header');
+            const headerH = header ? header.getBoundingClientRect().height : 48;
+            const gap = 4; // px gap between legend and minimized header (reduced for tighter stacking)
+            // set inline bottom with important to override any !important stylesheet rules
+            try {
+              legend.style.setProperty('bottom', (headerH + gap) + 'px', 'important');
+            } catch (e) {
+              legend.style.bottom = (headerH + gap) + 'px';
+            }
+            return;
+          }
+        }
+
+        // Restore default placement when not collapsed or on larger screens
+        try { legend.style.removeProperty('bottom'); } catch(e) { legend.style.bottom = ''; }
+      }
+
+      // wire minimize buttons to call the helper directly
+      function wireMinimizers(){
+        const panels = document.querySelectorAll('.draggable-panel');
+        panels.forEach(panel => {
+          const minBtn = panel.querySelector('.minimize-btn');
+          if (!minBtn) return;
+          minBtn.addEventListener('click', function(){
+            const body = panel.querySelector('.panel-body') || panel.querySelector('.layer-panel-body');
+            const currentlyCollapsed = body ? body.classList.contains('hidden') : panel.classList.contains('collapsed');
+            // toggle collapsed state
+            setPanelCollapsed(panel, !currentlyCollapsed);
+          });
+        });
+      }
+
+      // on DOM ready wire everything
+      if (document.readyState !== 'loading') {
+        wireMinimizers();
+        // On small screens start with layers collapsed and legend open so map remains visible
+        if (window.innerWidth <= 640){ const legend = document.getElementById('map-legend'); const layer = document.getElementById('layer-panel'); if (layer) setPanelCollapsed(layer, true); if (legend) setPanelCollapsed(legend, false); }
+      } else document.addEventListener('DOMContentLoaded', () => {
+        wireMinimizers();
+        // On small screens start with layers collapsed and legend open (mobile drawer UX)
+        if (window.innerWidth <= 640){ const legend = document.getElementById('map-legend'); const layer = document.getElementById('layer-panel'); if (layer) setPanelCollapsed(layer, true); if (legend) setPanelCollapsed(legend, false); }
+      });
+      // Recompute legend position on resize so stacked layout stays correct
+      let __legendResizeTimer = null;
+      window.addEventListener('resize', function(){
+        clearTimeout(__legendResizeTimer);
+        __legendResizeTimer = setTimeout(updateLegendPosition, 120);
+      });
+    
+    })();
+  </script>
+
 
   <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
@@ -629,7 +838,7 @@
         layers: []
       },
       center: [13.033229, 47.811195],
-      zoom: 12,
+      zoom: 15,
       pitch: 45
     });
 
@@ -1913,71 +2122,7 @@
     // add the control to top-left
     map.addControl(new MapTopLeftControl(), 'top-left');
 
-    // ------------------------- Minimizable Panels -------------------------
-    // Panels are fixed to the right side; only minimize/restore is supported.
-    (function enablePanels() {
-      const panels = document.querySelectorAll('.draggable-panel');
-
-      panels.forEach(panel => {
-        const minBtn = panel.querySelector('.minimize-btn');
-        const panelBody = panel.querySelector('.panel-body');
-        // ensure initial icon state matches collapsed class
-        if (minBtn) {
-          const iconInit = minBtn.querySelector('i');
-          const isCollapsedInit = panel.classList.contains('collapsed');
-          if (iconInit) {
-            iconInit.classList.toggle('fa-plus', isCollapsedInit);
-            iconInit.classList.toggle('fa-minus', !isCollapsedInit);
-          }
-        }
-
-        // sync initial body visibility
-        if (panelBody) {
-          if (panel.classList.contains('collapsed')) panelBody.classList.add('hidden'); else panelBody.classList.remove('hidden');
-        }
-
-        // minimize / restore toggle: use Tailwind utility toggles instead of relying on CSS rules
-        if (minBtn) {
-          minBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isCollapsed = panel.classList.toggle('collapsed');
-            if (panelBody) panelBody.classList.toggle('hidden', isCollapsed);
-            // visually compress the panel when collapsed
-            panel.classList.toggle('h-12', isCollapsed);
-            panel.classList.toggle('overflow-hidden', isCollapsed);
-            const iconEl = minBtn.querySelector('i');
-            if (iconEl) {
-              iconEl.classList.toggle('fa-plus', isCollapsed);
-              iconEl.classList.toggle('fa-minus', !isCollapsed);
-            } else {
-              minBtn.textContent = isCollapsed ? '+' : '−';
-            }
-          });
-        }
-
-        // allow clicking the small icon when collapsed to restore/expand
-        const icon = panel.querySelector('.panel-icon');
-        if (icon) {
-          icon.classList.add('cursor-pointer');
-          icon.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isCollapsed = panel.classList.toggle('collapsed');
-            if (panelBody) panelBody.classList.toggle('hidden', isCollapsed);
-            panel.classList.toggle('h-12', isCollapsed);
-            panel.classList.toggle('overflow-hidden', isCollapsed);
-            if (minBtn) {
-              const iconEl = minBtn.querySelector('i');
-              if (iconEl) {
-                iconEl.classList.toggle('fa-plus', isCollapsed);
-                iconEl.classList.toggle('fa-minus', !isCollapsed);
-              } else {
-                minBtn.textContent = isCollapsed ? '+' : '−';
-              }
-            }
-          });
-        }
-      });
-    })();
+    // Legacy panel wiring removed: use centralized `setPanelCollapsed` + `wireMinimizers` above.
 
 
       // Simple per-row toggle: click row or chevron toggles only that menu
