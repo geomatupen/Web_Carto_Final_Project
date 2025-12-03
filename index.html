@@ -451,6 +451,17 @@
     .draggable-panel.collapsed .layer-panel-body { display: none !important; }
     /* make sure layer header remains visible and compact when collapsed */
     .draggable-panel.collapsed .panel-header { border-radius: 8px; }
+    /* Non-small screens: reduce panel widths (~25% narrower) so they are less dominant
+       This applies from tablet upward (>= 641px) and preserves existing small-screen rules. */
+    @media (min-width: 641px) {
+      /* layer-panel: slightly wider than the previous reduction — increase a bit for readability */
+      /* set to 22.5% (slightly less than original 25%) with a sensible max-width */
+      #layer-panel { width: 22.5% !important; max-width: 32rem !important; }
+      /* legend default width ~14rem (w-56) — reduce by 25% to 10.5rem */
+      #map-legend { width: 10.5rem !important; max-width: 10.5rem !important; }
+      /* reduce legend body height by ~25% (from 48vh -> 36vh) to cover less map on normal screens */
+      #map-legend .panel-body { max-height: 32vh; overflow: auto; }
+    }
   </style>
   
 </head>
@@ -525,7 +536,7 @@
     </div>
   <!-- Webmap Title: top right, above layer panel -->
   
-  <div id="layer-panel" class="draggable-panel layer-panel absolute right-5 top-3 w-1/4 max-w-md z-20 h-screen flex flex-col bg-white/95 shadow-lg rounded-lg pb-4">
+  <div id="layer-panel" class="draggable-panel layer-panel absolute right-3 top-3 w-1/4 max-w-md z-20 h-screen flex flex-col bg-white/95 shadow-lg rounded-lg pb-4">
     <div class="panel-header flex items-center justify-between p-3 border-b bg-primary border-gray-100 rounded-lg">
       <div class="text-sm font-semibold text-gray-200">MeinSalzburg | Salzburg Urban Toolkit</div>
       <div class="panel-controls flex items-center gap-2">
@@ -1521,6 +1532,22 @@
         unit: "metric" // use 'imperial' for miles, 'nautical' for nautical miles
       });
       map.addControl(scale, "bottom-right");
+      // Move the scalebar to a fixed bottom-center position so it's centered
+      // on the viewport instead of the default bottom-right control group.
+      setTimeout(() => {
+        try {
+          const scaleEl = document.querySelector('.maplibregl-ctrl.maplibregl-ctrl-scale');
+          if (scaleEl) {
+            // re-parent to document.body and fix position centered at bottom
+            document.body.appendChild(scaleEl);
+            scaleEl.style.position = 'fixed';
+            scaleEl.style.left = '50%';
+            scaleEl.style.transform = 'translateX(-50%)';
+            scaleEl.style.bottom = '1rem';
+            scaleEl.style.zIndex = '65';
+          }
+        } catch (e) {}
+      }, 50);
     });
 
     // ---------------------- Proximity analysis logic ----------------------
