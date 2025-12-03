@@ -156,6 +156,7 @@
       box-sizing: border-box;
     }
     /* size presets */
+    .switch-xxs { --switch-track-width: 26px; --switch-track-height: 14px; --switch-knob-size: 10px; --switch-padding: 2px; }
     .switch-xs { --switch-track-width: 34px; --switch-track-height: 18px; --switch-knob-size: 12px; --switch-padding: 3px; }
     .switch-sm { --switch-track-width: 42px; --switch-track-height: 22px; --switch-knob-size: 14px; --switch-padding: 4px; }
     .switch-md { --switch-track-width: 56px; --switch-track-height: 28px; --switch-knob-size: 18px; --switch-padding: 5px; }
@@ -345,6 +346,12 @@
     .text-xs { font-size: 0.75rem !important; }
     .text-xxs { font-size: 0.65rem !important; }
     .text-xxxs { font-size: 0.55rem !important; }
+
+    /* Brand text color utilities (four project colors) */
+    .text-primary { color: #2A77ED !important; }
+    .text-secondary { color: #EDA02A !important; }
+    .text-tertiary { color: #ED2AD8 !important; }
+    .text-accent { color: #16a085 !important; }
 
      /* Reusable spacing utilities (Tailwind-like names) - keep as common primitives
        so you can reuse them across panels without adding bespoke CSS later. */
@@ -540,7 +547,7 @@
     <div class="panel-header flex items-center justify-between p-3 border-b bg-primary border-gray-100 rounded-lg">
       <div class="text-sm font-semibold text-gray-200">MeinSalzburg | Salzburg Urban Toolkit</div>
       <div class="panel-controls flex items-center gap-2">
-        <button class="minimize-btn btn-tertiary w-8 h-8 p-0 inline-flex items-center justify-center" data-target="layer-panel" aria-label="Minimize layers" aria-expanded="true"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
+        <button class="minimize-btn btn-tertiary w-8 h-8 p-0 inline-flex items-center justify-center" data-target="layer-panel" aria-label="Minimize layers" aria-expanded="true"><i class="fa-solid fa-minus text-gray-200" aria-hidden="true"></i></button>
       </div>
     </div>
     <div class="layer-panel-body overflow-auto p-2">
@@ -549,7 +556,7 @@
           <h4 class="text-xs font-semibold text-slate-600">Base Layers</h4>
           <div class="flex items-center gap-3">
             <label class="text-xxs text-gray-600 mr-2">3D</label>
-            <label id="switch-3d" class="switch switch-xs inline-flex items-center gap-3 cursor-pointer">
+            <label id="switch-3d" class="switch switch-xxs inline-flex items-center gap-3 cursor-pointer">
               <input id="toggle-3d" type="checkbox" class="sr-only" aria-label="Toggle 3D view" />
               <div class="switch-track">
                 <div class="switch-knob"></div>
