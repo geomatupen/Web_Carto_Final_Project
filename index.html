@@ -188,9 +188,10 @@
     /* Keep the color-binding rule only inside #layer-panel (higher specificity). */
     #layer-panel .switch input[type="checkbox"]:checked + .switch-track { background: #2A77ED !important; background-image: none !important; }
     label input[type="checkbox"] + .relative .switch-bg { background: #d9d9d9 !important; background-image: none !important; }
-     /* Position helper for proximity button placed to the right of the search box.
-       Calculation: left offset of search container (left-20 = 5rem) + width (w-80 = 20rem) + gap 0.5rem = 25.5rem */
-     .proximity-right { left: calc(25.5rem); }
+     /* Position helper for buttons placed to the right of the search box.
+       Calculation: left offset of search container (left-20 = 5rem) + width (w-80 = 20rem) + gap 0.5rem = 25.5rem
+       Flex container holds filter and analytics buttons side-by-side with small gap */
+     .buttons-right { left: calc(25.5rem); display: flex; gap: 0.5rem; align-items: center; }
      /* Welcome popup overlay: ensure a semi-opaque dark veil behind the modal so it stands out
        (some utility classes can make it appear fully transparent depending on cascade; enforce here).
        Also ensure the modal sits above other fixed UI elements (scalebar, controls) by increasing z-index. */
@@ -483,6 +484,21 @@
       /* reduce legend body height by ~25% (from 48vh -> 36vh) to cover less map on normal screens */
       #map-legend .panel-body { max-height: 32vh; overflow: auto; }
     }
+    /* Style for multiple select with better visual feedback */
+    #filter-value-select {
+      background-color: #f9fafb;
+    }
+    #filter-value-select option:checked {
+      background: linear-gradient(#2A77ED, #2A77ED);
+      background-color: #2A77ED !important;
+      color: white !important;
+    }
+    /* Compact quick-filter bar styles */
+    #compact-filter-bar { box-shadow: 0 6px 20px rgba(2,6,23,0.12); }
+    #compact-filter-bar select { min-width: 120px; }
+    @media (max-width: 640px) {
+      #compact-filter-bar { display: none !important; }
+    }
   </style>
   
 </head>
@@ -495,8 +511,37 @@
     <div id="search-results" class="mt-2 bg-white rounded-md shadow-lg max-h-56 overflow-auto"></div>
   </div>
 
-  <!-- Analytics dropdown button placed to the right of the search container -->
-  <div id="analytics-btn-container" class="absolute top-3 z-30 proximity-right">
+  <!-- Filter and Analytics buttons placed side-by-side to the right of the search container -->
+  <div id="top-buttons-container" class="absolute top-3 z-30 buttons-right">
+    <!-- Filter button with compact filter bar -->
+    <div class="relative">
+      <button id="filter-toggle" class="btn-primary icon-btn text-xs" title="Quick filters" aria-expanded="false">Filter</button>
+
+      <!-- Compact horizontal quick-filter bar (hidden by default) -->
+      <div id="compact-filter-bar" class="hidden fixed top-12 z-40 bg-white rounded-md shadow p-2 flex items-start gap-3" style="min-width:360px; left: 5rem;    margin-top: .2rem;">
+        <div class="flex flex-col text-xxs">
+          <label class="mb-1">Layer</label>
+          <select id="quick-filter-layer" class="text-xxs px-2 py-1 border rounded bg-white"></select>
+        </div>
+        <div class="flex flex-col text-xxs">
+          <label class="mb-1">Attribute</label>
+          <select id="quick-filter-attr" class="text-xxs px-2 py-1 border rounded bg-white"></select>
+        </div>
+        <div class="flex flex-col text-xxs">
+          <label class="mb-1">Values</label>
+          <select id="quick-filter-value" class="text-xxs px-2 py-1 border rounded bg-white" multiple size="6" style="min-width:150px;"></select>
+        </div>
+        <div class="flex flex-col items-stretch justify-between">
+          <label class="mb-1">&nbsp;</label>
+          <div class="flex flex-col gap-2">
+            <button id="quick-filter-apply" class="btn-primary text-xs">Apply</button>
+            <button id="quick-filter-reset" class="btn-tertiary text-xs">Reset</button>
+            <button id="quick-filter-close" class="btn-tertiary text-xs">Close</button>
+          </div> 
+        </div>
+      </div>
+    </div>
+    <!-- Analytics button with analytics menu -->
     <div class="relative inline-block">
       <button id="analytics-toggle" class="btn-secondary icon-btn text-xs flex items-center gap-2" title="Open analytics menu">
         <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
@@ -812,6 +857,7 @@
       </div>
 
       <div class="panel-sep my-3 border-t pt-3"></div>
+
 
       <div class="panel-sep my-4 border-t pt-3"></div>
       <div class="text-xs text-slate-600">Data sources</div>
@@ -1412,46 +1458,513 @@
         // Determine the title: prefer name, fall back to type, or use "Feature"
         const title = properties.name || properties.NAME || properties.type || properties.TYPE || "Feature";
 
-        // List of fields to exclude from the popup (unimportant data)
-        const excludeFields = new Set([
-          "name", "NAME", "type", "TYPE",
-          "id", "ID", "geometry", "GEOMETRY",
-          "osm_id", "osm_type", "OSM_ID", "OSM_TYPE",
-          "@id", "@type",
-          "changeset", "timestamp", "user", "uid", "version",
-          "visible", "way_id", "node_id", "relation_id",
-          "addr:postcode", "fixme"
-        ]);
-
-        // Create table rows for properties, filtering out excluded fields
-        const rows = Object.entries(properties)
-        .filter(([key]) => key.toLowerCase() !== "name")
-        .map(
-          ([key, value], i) => `
+        // If we have curated fields for this layer, show only those with aliases
+        let rows = '';
+        if (layerId && curatedFields[layerId]) {
+          const fields = curatedFields[layerId];
+          let rowIdx = 0;
+          fields.forEach(fieldName => {
+            const rawVal = properties ? properties[fieldName] : undefined;
+            if (rawVal === null || rawVal === undefined || rawVal === '') return;
+            const label = fieldAliases[`${layerId}:${fieldName}`] || fieldName;
+            const vKey = `${layerId}:${fieldName}:${String(rawVal)}`;
+            const displayVal = (valueAliases[vKey] || valueAliases[`${layerId}:${fieldName}:${String(rawVal).toLowerCase()}`] || prettyPrintValue(rawVal));
+            rows += `
+              <tr class="${rowIdx % 2 ? 'bg-rose-50' : 'bg-white'}">
+                <td class="px-2 py-1 text-slate-800 text-xxs text-gray-600"><strong>${label}</strong></td>
+                <td class="px-2 py-1 text-xxs text-gray-600">${displayVal}</td>
+              </tr>`;
+            rowIdx++;
+          });
+        } else if (properties) {
+          // Fallback: show all properties but pretty-print values
+          rows = Object.entries(properties)
+            .filter(([k]) => k.toLowerCase() !== 'name')
+            .map(([k,v], i) => `
               <tr class="${i % 2 ? 'bg-rose-50' : 'bg-white'}">
-              <td class="px-2 py-1 text-slate-800 text-xxs text-gray-600"><strong>${key}</strong></td>
-              <td class="px-2 py-1 text-xxs text-gray-600">${value}</td>
-            </tr>
-          `
-        )
-        .join("");
-
+                <td class="px-2 py-1 text-slate-800 text-xxs text-gray-600"><strong>${k}</strong></td>
+                <td class="px-2 py-1 text-xxs text-gray-600">${prettyPrintValue(v)}</td>
+              </tr>`).join('');
+        }
 
         return `
-              <div class="max-w-xs font-sans">
-            ${name ? `<h3 class="m-0 mb-2 text-base font-bold border-b border-gray-300 p-2 bg-amber-100 text-slate-800">${name}</h3>` : ""}
-
+          <div class="max-w-xs font-sans">
+            ${title ? `<h3 class="m-0 mb-2 text-base font-bold border-b border-gray-300 p-2 bg-amber-100 text-slate-800">${title}</h3>` : ''}
             ${rows ? `
-            <div class="max-h-40 overflow-y-auto border border-gray-300 rounded">
-              <table class="w-full border-collapse text-xs">
-                <tbody>
-                  ${rows}
-                </tbody>
-              </table>
-            </div>` : `<div style="padding:8px; color:#666; font-size:13px;">No additional data</div>`}
-          </div>
-        `;
+              <div class="max-h-40 overflow-y-auto border border-gray-300 rounded">
+                <table class="w-full border-collapse text-xs">
+                  <tbody>
+                    ${rows}
+                  </tbody>
+                </table>
+              </div>` : `<div style="padding:8px; color:#666; font-size:13px;">No additional data</div>`}
+          </div>`;
+      }
+
+    // Apply attribute-based filters to one or more layers.
+    // options: {
+    //   layerIds: string|array (defaults to allInteractiveLayers),
+    //   attr: string,                 // property name to test (may be an alias, will be converted to raw field name)
+    //   operator: '=='|'!='|'in'|'range'|'exists'|'not-exists'|'reset',
+    //   value: any or array (for 'in'),
+    //   min: number, max: number     // for 'range'
+    // }
+    function applyAttributeFilter(options = {}) {
+      if (!options || !options.attr) {
+        console.warn('applyAttributeFilter: missing options.attr');
+        return;
+      }
+
+      const layerIds = options.layerIds
+        ? (Array.isArray(options.layerIds) ? options.layerIds : [options.layerIds])
+        : allInteractiveLayers.slice();
+
+      let attr = options.attr;
+      // Convert alias back to raw field name if needed
+      if (aliasToRawField[attr]) {
+        attr = aliasToRawField[attr];
+      }
+      const op = options.operator || '==';
+      const val = options.value;
+      const min = options.min;
+      const max = options.max;
+
+      layerIds.forEach(layerId => {
+        if (!map.getLayer(layerId)) return;
+
+        let filter = null;
+        switch (op) {
+          case '==':
+            filter = ['==', ['get', attr], val];
+            break;
+          case '!=':
+            filter = ['!=', ['get', attr], val];
+            break;
+          case 'in':
+            if (!Array.isArray(val)) {
+              console.warn('applyAttributeFilter: value must be array for operator "in"');
+              return;
+            }
+            filter = ['in', ['get', attr], ['literal', val]];
+            break;
+          case 'range':
+            filter = ['all', ['>=', ['to-number', ['get', attr]], min], ['<=', ['to-number', ['get', attr]], max]];
+            break;
+          case 'exists':
+            filter = ['has', attr];
+            break;
+          case 'not-exists':
+            filter = ['!', ['has', attr]];
+            break;
+          case 'reset':
+            filter = null;
+            break;
+          default:
+            console.warn('applyAttributeFilter: unknown operator', op);
+            return;
+        }
+
+        // Apply filter (null clears the filter)
+        try {
+          map.setFilter(layerId, filter);
+        } catch (err) {
+          console.warn('applyAttributeFilter: failed to set filter for', layerId, err);
+        }
+      });
     }
+
+    // Convenience helper to clear attribute filters on one or more layers
+    function clearAttributeFilter(layerIds) {
+      const ids = layerIds ? (Array.isArray(layerIds) ? layerIds : [layerIds]) : allInteractiveLayers.slice();
+      ids.forEach(id => { if (map.getLayer(id)) map.setFilter(id, null); });
+    }
+
+    // Define which fields to show for each layer (curated for important data only)
+    const curatedFields = {
+      'amenities-layer': ['leisure', 'tourism', 'amenity', 'shop', 'name', 'access', 'wheelchair', 'sport'],
+      'buildings-layer': ['building', 'amenity', 'name', 'wheelchair'],
+      'railway-layer': ['railway', 'name', 'train', 'operator', 'wheelchair'],
+      'streets-layer': ['name', 'highway', 'surface', 'maxspeed', 'lanes'],
+      'rivers-layer': ['name', 'waterway', 'seasonal'],
+      'education-layer': ['name', 'amenity', 'wheelchair', 'phone', 'website'],
+      'health-layer': ['amenity', 'name', 'phone', 'website', 'wheelchair', 'opening_hours'],
+      'restaurants-layer': ['amenity', 'cuisine', 'name', 'opening_hours', 'phone', 'website', 'wheelchair', 'diet:vegetarian', 'diet:vegan', 'takeaway', 'delivery', 'capacity'],
+      'tourism-layer': ['tourism', 'name', 'website', 'phone', 'wheelchair', 'opening_hours'],
+      'transportation-layer': ['public_transport', 'bus', 'train', 'operator', 'name', 'wheelchair', 'shelter', 'bench', 'lit']
+    };
+
+    // Map field names to pretty display labels
+    const fieldAliases = {
+      // Amenities
+      'amenities-layer:leisure': 'Activity Type',
+      'amenities-layer:tourism': 'Tourist Attraction',
+      'amenities-layer:amenity': 'Facility Type',
+      'amenities-layer:shop': 'Shop Type',
+      'amenities-layer:name': 'Name',
+      'amenities-layer:access': 'Access',
+      'amenities-layer:wheelchair': 'Wheelchair Accessible',
+      'amenities-layer:sport': 'Sport Type',
+      // Buildings
+      'buildings-layer:building': 'Building Type',
+      'buildings-layer:amenity': 'Facility Type',
+      'buildings-layer:name': 'Name',
+      'buildings-layer:wheelchair': 'Wheelchair Accessible',
+      // Railway
+      'railway-layer:railway': 'Railway Type',
+      'railway-layer:name': 'Name',
+      'railway-layer:train': 'Train Station',
+      'railway-layer:operator': 'Operator',
+      'railway-layer:wheelchair': 'Wheelchair Accessible',
+      // Streets
+      'streets-layer:name': 'Street Name',
+      'streets-layer:highway': 'Road Type',
+      'streets-layer:surface': 'Surface Type',
+      'streets-layer:maxspeed': 'Speed Limit',
+      'streets-layer:lanes': 'Number of Lanes',
+      // Rivers
+      'rivers-layer:name': 'River Name',
+      'rivers-layer:waterway': 'Waterway Type',
+      'rivers-layer:seasonal': 'Seasonal',
+      // Education
+      'education-layer:name': 'Name',
+      'education-layer:amenity': 'Education Type',
+      'education-layer:wheelchair': 'Wheelchair Accessible',
+      'education-layer:phone': 'Phone',
+      'education-layer:website': 'Website',
+      // Health
+      'health-layer:amenity': 'Facility Type',
+      'health-layer:name': 'Name',
+      'health-layer:phone': 'Phone',
+      'health-layer:website': 'Website',
+      'health-layer:wheelchair': 'Wheelchair Accessible',
+      'health-layer:opening_hours': 'Opening Hours',
+      // Restaurants
+      'restaurants-layer:amenity': 'Restaurant Type',
+      'restaurants-layer:cuisine': 'Cuisine Type',
+      'restaurants-layer:name': 'Name',
+      'restaurants-layer:opening_hours': 'Opening Hours',
+      'restaurants-layer:phone': 'Phone',
+      'restaurants-layer:website': 'Website',
+      'restaurants-layer:wheelchair': 'Wheelchair Accessible',
+      'restaurants-layer:diet:vegetarian': 'Vegetarian Options',
+      'restaurants-layer:diet:vegan': 'Vegan Options',
+      'restaurants-layer:takeaway': 'Takeaway Available',
+      'restaurants-layer:delivery': 'Delivery Available',
+      'restaurants-layer:capacity': 'Seating Capacity',
+      // Tourism
+      'tourism-layer:tourism': 'Attraction Type',
+      'tourism-layer:name': 'Name',
+      'tourism-layer:website': 'Website',
+      'tourism-layer:phone': 'Phone',
+      'tourism-layer:wheelchair': 'Wheelchair Accessible',
+      'tourism-layer:opening_hours': 'Opening Hours',
+      // Transportation
+      'transportation-layer:public_transport': 'Transport Type',
+      'transportation-layer:bus': 'Bus Stop',
+      'transportation-layer:train': 'Train Station',
+      'transportation-layer:operator': 'Operator',
+      'transportation-layer:name': 'Name',
+      'transportation-layer:wheelchair': 'Wheelchair Accessible',
+      'transportation-layer:shelter': 'Has Shelter',
+      'transportation-layer:bench': 'Has Bench',
+      'transportation-layer:lit': 'Is Lit'
+    };
+
+    // Maps "alias" back to raw field name for filtering
+    const aliasToRawField = {};
+    // Global catalogs shared across UI components
+    const layerAttributes = {}; // layerId -> Set of attribute keys (aliases)
+    const layerAttrValues = {}; // layerId -> { alias -> Set of raw values }
+    const globalAttrSet = new Set();
+    // Map specific raw values to pretty display labels: keyed by "layerId:rawField:rawValue"
+    const valueAliases = {
+      // wheelchair common mappings
+      'amenities-layer:wheelchair:yes': 'Yes',
+      'amenities-layer:wheelchair:no': 'No',
+      'amenities-layer:wheelchair:limited': 'Limited',
+      'restaurants-layer:wheelchair:yes': 'Yes',
+      'restaurants-layer:wheelchair:no': 'No',
+      'transportation-layer:wheelchair:yes': 'Yes',
+      'transportation-layer:wheelchair:no': 'No',
+      // access
+      'amenities-layer:access:private': 'Private',
+      'amenities-layer:access:customers': 'Customers Only',
+      'amenities-layer:access:yes': 'Public',
+      // boolean-ish
+      'transportation-layer:shelter:yes': 'Has Shelter',
+      'transportation-layer:shelter:no': 'No Shelter',
+      'transportation-layer:bench:yes': 'Has Bench',
+      'transportation-layer:bench:no': 'No Bench',
+      'transportation-layer:lit:yes': 'Lit',
+      'transportation-layer:lit:no': 'Not Lit',
+      // common amenity types (examples)
+      'restaurants-layer:amenity:restaurant': 'Restaurant',
+      'restaurants-layer:amenity:cafe': 'Cafe',
+      'restaurants-layer:amenity:bar': 'Bar',
+      'amenities-layer:leisure:playground': 'Playground',
+      'amenities-layer:leisure:swimming_pool': 'Swimming Pool',
+      // cuisine examples
+      'restaurants-layer:cuisine:italian': 'Italian',
+      'restaurants-layer:cuisine:indian': 'Indian',
+      'restaurants-layer:cuisine:burger': 'Burger',
+      'restaurants-layer:cuisine:asian': 'Asian',
+    };
+
+    // Fallback pretty-printer for values when no explicit alias exists
+    function prettyPrintValue(raw) {
+      if (raw === null || raw === undefined) return '';
+      let s = String(raw);
+      // If semicolon-separated OSM tag like "thai;asian" show as "Thai, Asian"
+      if (s.indexOf(';') !== -1) {
+        return s.split(';').map(x => x.trim()).filter(Boolean).map(x => x.replace(/_/g, ' ')).map(x => x.charAt(0).toUpperCase()+x.slice(1)).join(', ');
+      }
+      // simple true/false / yes/no normalisation
+      const lower = s.toLowerCase();
+      if (lower === 'yes' || lower === 'true') return 'Yes';
+      if (lower === 'no' || lower === 'false') return 'No';
+      if (lower === 'limited') return 'Limited';
+      // replace underscores and capitalise words
+      s = s.replace(/_/g, ' ');
+      return s.split(' ').map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+    }
+
+    // Global helper to populate a value select for an attribute (optionally restricted to a layer)
+    // If targetSelectEl is omitted it defaults to the main `filter-value-select` element.
+    function populateValueSuggestions(attrName, layerId, targetSelectElId) {
+      const targetId = targetSelectElId || 'filter-value-select';
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      const vals = new Set();
+      // attrName is an alias; map back to raw field name
+      const rawField = aliasToRawField[attrName] || attrName;
+      if (layerId){
+        const m = layerAttrValues[layerId] && layerAttrValues[layerId][attrName];
+        if (m) Array.from(m).forEach(v => vals.add(v));
+      } else {
+        // union across layers
+        Object.keys(layerAttrValues).forEach(lid => {
+          const m = layerAttrValues[lid] && layerAttrValues[lid][attrName];
+          if (m) Array.from(m).forEach(v => vals.add(v));
+        });
+      }
+      // populate select (limit to first 200)
+      target.innerHTML = '';
+      Array.from(vals).slice(0,200).sort().forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        let display = null;
+        if (layerId) display = valueAliases[`${layerId}:${rawField}:${v}`];
+        if (!display) display = valueAliases[`${rawField}:${v}`] || valueAliases[`${layerId}:${attrName}:${v}`] || valueAliases[`${attrName}:${v}`];
+        if (!display) display = prettyPrintValue(v);
+        opt.textContent = display;
+        target.appendChild(opt);
+      });
+    }
+
+    // --- Filter UI wiring: populate layer select and hook Apply/Reset ---
+    (function(){
+      function initFilterUI(){
+        const filterLayerSelect = document.getElementById('filter-layer');
+        const filterOperator = document.getElementById('filter-operator');
+        const filterAttrSelect = document.getElementById('filter-attr-select');
+        const filterValueSelect = document.getElementById('filter-value-select');
+        const filterMin = document.getElementById('filter-min');
+        const filterMax = document.getElementById('filter-max');
+        const filterRangeContainer = document.getElementById('filter-range-container');
+        const filterValueContainer = document.getElementById('filter-value-container');
+
+        if (filterLayerSelect){
+          // Populate with layers available for filtering
+          filterLayerSelect.innerHTML = '';
+          const optAll = document.createElement('option'); optAll.value = ''; optAll.textContent = 'All interactive layers';
+          filterLayerSelect.appendChild(optAll);
+          (typeof allInteractiveLayers !== 'undefined' ? allInteractiveLayers : []).forEach(id => {
+            const opt = document.createElement('option'); opt.value = id; opt.textContent = id.replace(/-layer$/, '').replace(/-/g, ' ');
+            filterLayerSelect.appendChild(opt);
+          });
+        }
+
+        // Map layer IDs to their GeoJSON file paths
+        const layerToGeoJSONPath = {
+          'amenities-layer': 'data/amenities.geojson',
+          'buildings-layer': 'data/buildings.geojson',
+          'railway-layer': 'data/railway.geojson',
+          'streets-layer': 'data/streets.geojson',
+          'rivers-layer': 'data/rivers.geojson',
+          'education-layer': 'data/Education.geojson',
+          'health-layer': 'data/Health.geojson',
+          'restaurants-layer': 'data/Restaurants.geojson',
+          'tourism-layer': 'data/Tourism.geojson',
+          'transportation-layer': 'data/Transportation.geojson'
+        };
+
+        // Build attribute/value catalogs by fetching all GeoJSON files
+        // Helper function to fetch and process a GeoJSON file
+        async function processGeoJSON(layerId, filePath) {
+          layerAttributes[layerId] = new Set();
+          layerAttrValues[layerId] = {};
+          try {
+            const response = await fetch(filePath);
+            if (!response.ok) {
+              console.warn(`Failed to fetch ${filePath}: ${response.status}`);
+              return;
+            }
+            const geojson = await response.json();
+            const features = geojson.features || [];
+            const curated = curatedFields[layerId] || [];
+            
+            features.forEach(f => {
+              const props = f.properties || {};
+              curated.forEach(fieldName => {
+                if (fieldName in props) {
+                  const alias = fieldAliases[`${layerId}:${fieldName}`] || fieldName;
+                  layerAttributes[layerId].add(alias);
+                  globalAttrSet.add(alias);
+                  // Map alias back to raw field name for filtering
+                  aliasToRawField[alias] = fieldName;
+                  aliasToRawField[`${layerId}:${alias}`] = fieldName;
+                  if (!layerAttrValues[layerId][alias]) layerAttrValues[layerId][alias] = new Set();
+                  const v = props[fieldName];
+                  // Only add non-null, non-empty values
+                  if (v !== null && v !== undefined && v !== '') {
+                    layerAttrValues[layerId][alias].add(String(v));
+                  }
+                }
+              });
+            });
+          } catch (e) {
+            console.warn(`Error processing GeoJSON for ${layerId}:`, e);
+          }
+        }
+
+        // Fetch all GeoJSONs synchronously by building an array of promises and awaiting them
+        async function buildCatalogs() {
+          const promises = [];
+          (typeof allInteractiveLayers !== 'undefined' ? allInteractiveLayers : []).forEach(layerId => {
+            const filePath = layerToGeoJSONPath[layerId];
+            if (filePath) {
+              promises.push(processGeoJSON(layerId, filePath));
+            }
+          });
+          await Promise.all(promises);
+          repopulateSelects();
+        }
+
+        // Helper to repopulate the attribute and value selects after catalogs are built
+        function repopulateSelects() {
+          // Populate global attribute select
+          if (filterAttrSelect){
+            filterAttrSelect.innerHTML = '<option value="">Choose attribute...</option>';
+            Array.from(globalAttrSet).sort().forEach(k => {
+              const opt = document.createElement('option'); opt.value = k; opt.textContent = k; filterAttrSelect.appendChild(opt);
+            });
+          }
+        }
+
+        // Start loading GeoJSONs immediately
+        buildCatalogs().catch(e => console.error('Error building catalogs:', e));
+
+        // helper to populate value select for an attribute (optionally restricted to a layer)
+        // Delegates to the global populateValueSuggestions which accepts a target select id optionally
+        function populateValueSuggestions(attrName, layerId){
+          populateValueSuggestions(attrName, layerId, 'filter-value-select');
+        }
+
+        // When the layer select changes, update the attribute suggestions to show only attributes present in that layer (or global)
+        if (filterLayerSelect){
+          filterLayerSelect.addEventListener('change', (e) => {
+            const layerId = e.target.value || null;
+            if (filterAttrSelect){
+              filterAttrSelect.innerHTML = '<option value="">Choose attribute...</option>';
+              const keys = layerId ? Array.from(layerAttributes[layerId] || []) : Array.from(globalAttrSet);
+              keys.sort().forEach(k => { const opt = document.createElement('option'); opt.value = k; opt.textContent = k; filterAttrSelect.appendChild(opt); });
+            }
+            // clear values
+            if (filterValueSelect) filterValueSelect.innerHTML = '';
+          });
+        }
+
+        // When the attribute select changes, populate value select based on current layer selection
+        if (filterAttrSelect){
+          filterAttrSelect.addEventListener('change', (e) => {
+            const attrName = e.target.value;
+            const layerId = (filterLayerSelect && filterLayerSelect.value) ? filterLayerSelect.value : null;
+            if (attrName) populateValueSuggestions(attrName, layerId);
+            else if (filterValueSelect) filterValueSelect.innerHTML = '';
+          });
+        }
+
+        if (filterOperator){
+          filterOperator.addEventListener('change', (e) => {
+            const v = e.target.value;
+            if (v === 'range'){
+              if (filterRangeContainer) filterRangeContainer.classList.remove('hidden');
+              if (filterValueContainer) filterValueContainer.classList.add('hidden');
+            } else {
+              if (filterRangeContainer) filterRangeContainer.classList.add('hidden');
+              if (filterValueContainer) filterValueContainer.classList.remove('hidden');
+            }
+          });
+        }
+
+        const applyBtn = document.getElementById('filter-apply');
+        if (applyBtn) applyBtn.addEventListener('click', () => {
+          const layerId = filterLayerSelect && filterLayerSelect.value ? filterLayerSelect.value : undefined;
+          let operator = filterOperator ? filterOperator.value : '==';
+          const attr = filterAttrSelect ? filterAttrSelect.value.trim() : '';
+          if (!attr && operator !== 'reset' && operator !== 'exists' && operator !== 'not-exists'){
+            alert('Please enter an attribute name to filter'); return;
+          }
+
+          if (operator === 'reset'){
+            if (layerId) clearAttributeFilter(layerId); else clearAttributeFilter(); return;
+          }
+
+          if (operator === 'range'){
+            const min = parseFloat(filterMin.value); const max = parseFloat(filterMax.value);
+            if (isNaN(min) || isNaN(max)){ alert('Please enter numeric min and max'); return; }
+            applyAttributeFilter({ layerIds: layerId, attr, operator: 'range', min, max }); return;
+          }
+
+          // Check how many values are selected
+          const sel = filterValueSelect ? Array.from(filterValueSelect.selectedOptions).map(o => o.value) : [];
+          
+          // If multiple values selected and operator is not 'in', auto-switch to 'in'
+          if (sel.length > 1 && operator !== 'in' && operator !== 'range' && operator !== 'exists' && operator !== 'not-exists'){
+            operator = 'in';
+          }
+
+          if (operator === 'in'){
+            // read selected values from value select
+            if (!sel.length){ alert('Select one or more values for "in"'); return; }
+            applyAttributeFilter({ layerIds: layerId, attr, operator: 'in', value: sel }); return;
+          }
+
+          if (operator === 'exists' || operator === 'not-exists'){
+            applyAttributeFilter({ layerIds: layerId, attr, operator }); return;
+          }
+
+          // default equality/inequality: read single selected value
+          const value = sel.length ? sel[0] : null;
+          if (value === null || value === undefined || value === '') { alert('Please select a value'); return; }
+          applyAttributeFilter({ layerIds: layerId, attr, operator, value });
+        });
+
+        const resetBtn = document.getElementById('filter-reset');
+        if (resetBtn) resetBtn.addEventListener('click', () => { clearAttributeFilter(); });
+      }
+
+      // Ensure we initialize the filter UI after the map has loaded so source queries work.
+      try {
+        if (map && map.loaded && typeof map.loaded === 'function') {
+          if (map.loaded()) initFilterUI(); else map.on('load', initFilterUI);
+        } else {
+          if (document.readyState !== 'loading') initFilterUI(); else document.addEventListener('DOMContentLoaded', initFilterUI);
+        }
+      } catch (e) {
+        if (document.readyState !== 'loading') initFilterUI(); else document.addEventListener('DOMContentLoaded', initFilterUI);
+      }
+    })();
 
     // Add click events for layers to show popups (excluding salzburg-boundaries-layer)
     const layersWithPopups = [
@@ -1472,7 +1985,7 @@
         const props = e.features[0].properties;
         new maplibregl.Popup({ closeButton: true })
           .setLngLat(e.lngLat)
-          .setHTML(buildPopupHTML(props))
+          .setHTML(buildPopupHTML(props, layerId))
           .addTo(map);
       });
     });
@@ -1508,7 +2021,7 @@
         
         // Only show popup if top layer is not salzburg boundaries
         if (topLayerId !== "salzburg-boundaries-layer" && topLayerId !== "salzburg-boundaries-outline") {
-          let popupHTML = buildPopupHTML(topFeature.properties);
+          let popupHTML = buildPopupHTML(topFeature.properties, topLayerId);
           
           // Add dropdown if multiple layers
           if (uniqueLayers.length > 1) {
@@ -1544,8 +2057,8 @@
                   const selectedFeature = features.find(f => f.layer.id === selectedLayerId);
                   
                   if (selectedFeature && selectedLayerId !== "salzburg-boundaries-layer" && selectedLayerId !== "salzburg-boundaries-outline") {
-                    popup.remove();
-                    let newPopupHTML = buildPopupHTML(selectedFeature.properties);
+                      popup.remove();
+                      let newPopupHTML = buildPopupHTML(selectedFeature.properties, selectedLayerId);
                     
                     // Re-add dropdown with updated selection
                     const dropdownOptions = uniqueLayers.map((layerId, idx) => `
@@ -1660,6 +2173,105 @@
     const infoDiv = document.getElementById('proximity-info');
 
     let proximityCenter = null; // {lng, lat}
+
+    // Quick filter compact bar elements
+    const filterToggle = document.getElementById('filter-toggle');
+    const compactBar = document.getElementById('compact-filter-bar');
+    const quickLayer = document.getElementById('quick-filter-layer');
+    const quickAttr = document.getElementById('quick-filter-attr');
+    const quickValue = document.getElementById('quick-filter-value');
+    const quickApply = document.getElementById('quick-filter-apply');
+    const quickClose = document.getElementById('quick-filter-close');
+
+    // Populate quick layer select from existing allInteractiveLayers
+    function populateQuickLayerOptions(){
+      if (!quickLayer) return;
+      quickLayer.innerHTML = '<option value="">All layers</option>';
+      (allInteractiveLayers || []).forEach(id => {
+        const opt = document.createElement('option'); opt.value = id; opt.textContent = id.replace(/-layer$/, '').replace(/-/g, ' ');
+        quickLayer.appendChild(opt);
+      });
+    }
+
+    // When quickAttr changes, use existing populateValueSuggestions to fill quickValue directly
+    function syncQuickValues(attrName, layerId){
+      if (!quickValue) return;
+      // Use existing populateValueSuggestions to fill the quick-filter-value select directly
+      populateValueSuggestions(attrName, layerId, 'quick-filter-value');
+    }
+
+    // When quickAttr changes, trigger sync
+    if (quickAttr){
+      quickAttr.addEventListener('change', (e) => {
+        const attr = e.target.value;
+        const layerId = (quickLayer && quickLayer.value) ? quickLayer.value : null;
+        if (attr) syncQuickValues(attr, layerId);
+      });
+    }
+
+    // When quickLayer changes, repopulate quickAttr options from layerAttributes or globalAttrSet
+    if (quickLayer){
+      quickLayer.addEventListener('change', (e) => {
+        const lid = e.target.value || null;
+        quickAttr.innerHTML = '';
+        const keys = lid ? Array.from(layerAttributes[lid] || []) : Array.from(globalAttrSet);
+        keys.sort().forEach(k => { const opt = document.createElement('option'); opt.value = k; opt.textContent = k; quickAttr.appendChild(opt); });
+        // clear values
+        quickValue.innerHTML = '';
+      });
+    }
+
+    // Toggle compact bar
+    if (filterToggle){
+      filterToggle.addEventListener('click', () => {
+        if (!compactBar) return;
+        compactBar.classList.toggle('hidden');
+        const expanded = !compactBar.classList.contains('hidden');
+        filterToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (expanded){
+          populateQuickLayerOptions();
+          // sync attribute options to current quickLayer value
+          const lid = quickLayer && quickLayer.value ? quickLayer.value : null;
+          const keys = lid ? Array.from(layerAttributes[lid] || []) : Array.from(globalAttrSet);
+          quickAttr.innerHTML = '';
+          keys.sort().forEach(k => { const opt = document.createElement('option'); opt.value = k; opt.textContent = k; quickAttr.appendChild(opt); });
+        }
+      });
+    }
+
+    // Close compact bar
+    if (quickClose){ quickClose.addEventListener('click', () => compactBar.classList.add('hidden')); }
+
+    // Apply quick filter directly using applyAttributeFilter
+    if (quickApply){
+      quickApply.addEventListener('click', () => {
+        const lid = quickLayer && quickLayer.value ? quickLayer.value : undefined;
+        const attr = quickAttr && quickAttr.value ? quickAttr.value : null;
+        if (!attr){ alert('Choose an attribute'); return; }
+        const vals = quickValue ? Array.from(quickValue.selectedOptions).map(o => o.value) : [];
+        if (!vals.length){ alert('Select one or more values'); return; }
+        applyAttributeFilter({ layerIds: lid, attr, operator: 'in', value: vals });
+      });
+    }
+
+    // Reset all filters
+    const quickReset = document.getElementById('quick-filter-reset');
+    if (quickReset){
+      quickReset.addEventListener('click', () => {
+        // Clear all active filters across all layers
+        clearAttributeFilter(allInteractiveLayers);
+        // Reset layer visibility - check all layer checkboxes
+        document.querySelectorAll('#map-legend input[type="checkbox"]').forEach(cb => {
+          cb.checked = true;
+          // Trigger change event to update layer visibility
+          cb.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        // Reset form selections
+        if (quickLayer) quickLayer.value = '';
+        if (quickAttr) quickAttr.innerHTML = '';
+        if (quickValue) quickValue.innerHTML = '';
+      });
+    }
 
     function updateProximityInfo() {
       const val = parseFloat(radiusInput.value) || 0;
@@ -2708,13 +3320,8 @@
         } catch (e) {}
       }
 
-      const mDefault = document.getElementById('marker-default-visible');
-      const mPng = document.getElementById('marker-png-visible');
-      const mHtml = document.getElementById('marker-html-visible');
 
-      if (mDefault) mDefault.addEventListener('change', (e) => { if (typeof markerDefault !== 'undefined') setMarkerDisplay(markerDefault, e.target.checked); });
-      if (mPng) mPng.addEventListener('change', (e) => { if (typeof markerPNG !== 'undefined') setMarkerDisplay(markerPNG, e.target.checked); });
-      if (mHtml) mHtml.addEventListener('change', (e) => { if (typeof markerHTML !== 'undefined') setMarkerDisplay(markerHTML, e.target.checked); });
+
 
     });
 
