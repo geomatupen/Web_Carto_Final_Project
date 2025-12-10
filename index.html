@@ -822,7 +822,6 @@
         </div>
         <div class="data-credit mt-2 text-xs text-slate-700">Map tiles © <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener">OpenStreetMap contributors</a>
           &nbsp;|&nbsp; Satellite © <a href="https://www.esri.com/en-us/home" target="_blank" rel="noopener">Esri</a>
-          &nbsp;|&nbsp; Data: <a href="data/austria-demography-simplified-wgs84.geojson" target="_blank">Austria demography (GeoJSON)</a>
           &nbsp;|&nbsp; Icons: <code>marker.png</code>
         </div>
         <div class="mt-2 text-xs text-slate-500">Please respect each provider's terms of use and attribution requirements.</div>
@@ -1631,11 +1630,6 @@
     });
 
     // ---------------------- Proximity analysis logic ----------------------
-    let regionsGeo = null;
-    fetch('data/austria-demography-simplified-wgs84.geojson')
-      .then(r => r.json())
-      .then(j => { regionsGeo = j; })
-      .catch(err => { console.warn('Could not load regions GeoJSON for proximity:', err); });
 
     // Analytics dropdown toggle
     const analyticsToggle = document.getElementById('analytics-toggle');
@@ -1786,20 +1780,6 @@
         markerCounts.push({ id: m.id, inside });
       });
 
-      // regions
-      let regionsInside = [];
-      if (regionsGeo && regionsGeo.features) {
-        regionsGeo.features.forEach(f => {
-          try {
-            if (turf.booleanIntersects(circlePoly, f)) {
-              regionsInside.push(f);
-            }
-          } catch (e) {
-            // ignore
-          }
-        });
-      }
-
       // Build summary HTML
       const lines = [];
       lines.push(`<div class="font-semibold mb-1">Summary</div>`);
@@ -1810,19 +1790,6 @@
       markerCounts.forEach(m => {
         lines.push(`<div class="text-xs py-0.5">${m.id}: <strong class="${m.inside ? 'text-sky-600' : 'text-slate-500'}">${m.inside ? 'inside' : 'outside'}</strong></div>`);
       });
-
-      // regions
-      lines.push('<div class="mt-2"><strong>Regions</strong></div>');
-      lines.push(`<div class="text-xs py-0.5">Count inside: <strong>${regionsInside.length}</strong></div>`);
-      if (regionsInside.length) {
-        lines.push('<div class="max-h-32 overflow-auto border-t border-slate-200 mt-1 pt-1">');
-        regionsInside.slice(0,50).forEach(r => {
-          const name = r.properties && (r.properties.NAME || r.properties.name || '')
-          lines.push(`<div class="text-xs py-1 border-b border-dashed border-slate-200">${name}</div>`);
-        });
-        if (regionsInside.length > 50) lines.push(`<div class="text-xs text-slate-600 py-1">+${regionsInside.length-50} more</div>`);
-        lines.push('</div>');
-      }
 
       summaryDiv.innerHTML = lines.join('');
     });
